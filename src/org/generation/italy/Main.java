@@ -11,20 +11,19 @@ public class Main {
 	public static Utenti user;
 
 	public static void main(String[] args) {
-		// gestione libri
 		Scanner sc = new Scanner(System.in);
 		ArrayList<Libri> elencoLibri = new ArrayList<Libri>();
-		boolean esci = false;
+		boolean esci = false, esci2=true;
+		System.out.println("Benvenuto nel gestionale della biblioteca");
 		do {
-			esci = false;
-			System.out.println("Connessione in corso..");
+			esci2 = false;
 			elencoLibri.clear();
 			Sql.caricaLibri(elencoLibri);
 			System.out.println(
 					"Seleziona l'operazione da fare: \n1. Gestione Libri\n2. Gestione Utenti\n3. Gestione Prestiti");
 			String scelta = sc.nextLine();
 			switch (scelta) {
-			case "1": {//gestione libri
+			case "1": {// gestione libri
 				do {
 					esci = false;
 					System.out.println(
@@ -75,7 +74,7 @@ public class Main {
 						break;
 					}
 					case "5":
-						esci = true;
+						esci2 = true;
 						break;
 					default: {
 						System.out.println("Selezione non valida!");
@@ -117,15 +116,58 @@ public class Main {
 			case "3": {// gestione prestiti
 				do {
 					esci = false;
-					System.out.println("operazione prestiti");
-					Sql.NuovoPrestito();
-					break;
+					System.out.println(
+							"Scegli l'operazione da fare \n1. Registra Nuovo Prestito\n2. Restituzione libri\n3. Esci");
+					scelta = sc.nextLine();
+					switch (scelta) {
+					case "1": {
+						System.out.println("Nuovo prestito: ");
+						Sql.NuovoPrestito();
+						break;
+					}
+					case "2": {
+						System.out.println("Restituzione: ");
+						Sql.Restituzione();
+						break;
+					}
+					case "3": {
+						esci = true;
+					}
+					default:
+						System.out.println("Selezione non valida!");
+					}
 				} while (!esci);
+				break;
+			}
+			case "4": {
+				do {
+					esci = false;
+					System.out.println("Gestione magazzino\n1. Scarico nuovi libri");// inserire scelte
+					scelta = sc.nextLine();
+					switch (scelta) {
+					case "1": {
+						System.out.println("Aggiunta dei libri");
+						Sql.AggiungiLibri();
+						break;
+					}
+					case "2": {
+						System.out.println("Controllo giacenze");
+						
+						break;
+					}
+					default:
+						System.out.println("Selezione non valida!");
+
+					}
+
+				} while (!esci);
+				break;
 			}
 			default: {
 				System.out.println("Selezione non valida!");
 			}
 			}
-		} while (!esci);
+			
+		} while (!esci2);
 	}
 }

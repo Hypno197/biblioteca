@@ -24,8 +24,6 @@ public class Sql {
 
 	public static void caricaLibri(ArrayList<Libri> elencoLibri) {
 		try (Connection conn = DriverManager.getConnection(url, "root", "")) {
-			System.out.println("Connesso correttamente al DB");
-			// inserire caricalibri
 			String sql = "SELECT * FROM libri";
 			try (PreparedStatement ps = conn.prepareStatement(sql)) {
 				try (ResultSet rs = ps.executeQuery()) {
@@ -261,7 +259,7 @@ public class Sql {
 		System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
 	}
 
-	public static void nuovoUtente() {
+	public static void nuovoUtente() { //**inserire validazione
 		Scanner sc = new Scanner(System.in);
 		Utenti user = new Utenti();
 		System.out.println("Inserisci Nome dell'utente");
@@ -416,7 +414,7 @@ public class Sql {
 		try (Connection conn = DriverManager.getConnection(url, "root", "")) {
 			for (int i = 0; i < qtapres; i++) {
 				if (l.qnt > 0) {
-					sql = "INSERT INTO `prestiti` (`id`, `id_utente`, `id_libro`, `data_inizio`, `data_fine`, `data_consegna`, `riconsegnato`, `ritardo`) VALUES (NULL, ? , ? , ? , ? , NULL, NULL, NULL) ; UPDATE libri SET qnt = qnt - 1 WHERE id = ? ";
+					sql = "INSERT INTO `prestiti` (`id`, `id_utente`, `id_libro`, `data_inizio`, `data_fine`, `data_consegna`, `riconsegnato`, `ritardo`) VALUES (NULL, ? , ? , ? , ? , NULL, 0 , 0) ; UPDATE libri SET qnt = qnt - 1 WHERE id = ? ";
 					try (PreparedStatement aggpres = conn.prepareStatement(sql)) {
 						aggpres.setInt(1, user.id);
 						aggpres.setInt(2, l.id);
@@ -506,6 +504,7 @@ public class Sql {
 						if (!rscf.next()) {// se utente non registrato lo registra
 							System.out.println("Utente non trovato! Aggiunta nuovo utente.");
 							nuovoUtente();
+							break;
 						} else {
 							System.out.println("Utente trovato");
 							found = true;
@@ -525,40 +524,137 @@ public class Sql {
 		}
 		return user;
 	}
-
+	
+	public static Utenti cercaUserDaCf2() {
+		boolean found = false;
+		Utenti user = new Utenti();
+		Scanner sc = new Scanner(System.in);
+		System.out.println("Inserisci il codice fiscale da cercare:");
+		user.cod_fiscale = sc.nextLine();
+		try (Connection conn = DriverManager.getConnection(url, "root", "")) {
+				sql = "SELECT * FROM utenti WHERE cod_fiscale = ?";
+				try (PreparedStatement cercaCF = conn.prepareStatement(sql)) {
+					cercaCF.setString(1, user.cod_fiscale);
+					try (ResultSet rscf = cercaCF.executeQuery()) {
+						if (!rscf.next()) {// se utente non registrato lo registra
+							System.out.println("Utente non trovato!");
+							user=null;
+						} else {
+							System.out.println("Utente trovato");
+							found = true;
+							user.id = rscf.getInt("id");
+							user.nome = rscf.getString("nome");
+							user.cognome = rscf.getString("cognome");
+							user.data_nascita = (rscf.getDate("data_nascita")).toLocalDate();
+							user.num_telefono = rscf.getString("num_telefono");
+							user.indirizzo = rscf.getString("indirizzo");
+							System.out.println(user.toString());
+						}
+					}
+				}
+		} catch (Exception e) {
+			System.out.println("Errore nella ricerca dell'utente: " + e.getMessage());
+		}
+		return user;
+	}
 	public static void Restituzione() {
 		Prestito p = new Prestito();
 		Utenti user = new Utenti();
 		Libri l = new Libri();
 		Scanner sc = new Scanner(System.in);
-		user = cercaUserDaCf();
+		boolean ritard = false;
+		int qtarit=0, qtarest, qtaeff=0;
+		user = cercaUserDaCf2();
+		if (user==null)
+			return;
 		l = cercaLibroDaTitolo();
 		System.out.println("Seleziona la quantità di libri da restituire.");
-		int qtarest = sc.nextInt();
-		HashMap<Integer, LocalDate> libridarest=new HashMap<Integer, LocalDate>();
+		qtarest = sc.nextInt();
+//		HashMap<Integer, LocalDate> libridarest=new HashMap<Integer, LocalDate>();
+		ArrayList<Prestito> libridarest = new ArrayList<Prestito>();
 		sc.nextLine();
-		try (Connection conn = DriverManager.getConnection(url, "root", "")) {//ciclo per restituire libri, check ritardi e scadenze, storage ID/data nell'hashmap, ci ripensiamo domani grazie ciao
-				sql =	"SELECT * FROM prestiti WHERE id_utente = ? AND id_libro = ? AND riconsegnato = 0";
-						try (PreparedStatement rit=conn.prepareStatement(sql)){
-							rit.setInt(1, user.id);
-							rit.setInt(2, l.id);
-							try (ResultSet ritrs=rit.executeQuery()){
-								if (ritrs.next()) {
-									libridarest.put(ritrs.getInt("id"), (ritrs.getDate("data_fine")).toLocalDate());
-								}
-							}
-			}						
-						for (int i = 0; i < qtarest; i++) {
-				sql = "UPDATE `prestiti` SET `riconsegnato` = '1', data_consegna= ? , ritardo = ?  WHERE id = ? AND prestiti.riconsegnato = 0 ; UPDATE libri SET qnt = qnt + 1 WHERE id = ?";
-					try (PreparedStatement aggpres = conn.prepareStatement(sql)) {
-					aggpres.setObject(1, LocalDate.now());
-					
-					// da finire
+		try (Connection conn = DriverManager.getConnection(url, "root", "")) {// ciclo per restituire libri, check
+																				// ritardi e scadenze, storage ID/data
+																				// nell'hashmap, ci ripensiamo domani
+																				// grazie ciao
+			sql = "SELECT * FROM prestiti WHERE prestiti.id_utente = ? AND prestiti.id_libro = ? AND prestiti.riconsegnato = 0";
+			try (PreparedStatement rit = conn.prepareStatement(sql)) {
+				rit.setInt(1, user.id);
+				rit.setInt(2, l.id);
+				try (ResultSet rs = rit.executeQuery()) {
+					while (rs.next()) {
+						qtaeff++;
+						p = new Prestito();
+						p.id = rs.getInt("id");
+						p.id_utente = rs.getInt("id_utente");
+						p.id_libro = rs.getInt("id_libro");
+						p.riconsegnato = rs.getBoolean("riconsegnato");
+						p.ritardo = rs.getBoolean("ritardo");
+						p.data_inizio = (rs.getDate("data_inizio")).toLocalDate();
+						p.data_fine = (rs.getDate("data_fine")).toLocalDate();
+						libridarest.add(p);
 					}
-					System.out.println("Libri restituiti! Sono stati ritornati " + i + " libri.");
+				}
 			}
+			for (int i = 0; i < qtarest; i++) {
+				if (libridarest.get(i).data_fine.isBefore(LocalDate.now())) {
+					ritard = true;
+					qtarit++;
+				}
+				else
+					ritard = false;
+				sql = "UPDATE `prestiti` SET `riconsegnato` = '1', data_consegna= ? , ritardo = ?  WHERE id = ? AND prestiti.riconsegnato = 0 ; UPDATE libri SET qnt = qnt + 1 WHERE id = ?";
+				try (PreparedStatement aggpres = conn.prepareStatement(sql)) {
+					aggpres.setObject(1, LocalDate.now());
+					aggpres.setBoolean(2, ritard);
+					aggpres.setInt(3, libridarest.get(i).id);
+					aggpres.setInt(4, libridarest.get(i).id_libro);
+					aggpres.executeUpdate();
+				}
+			}
+			System.out.println("Libri restituiti! Sono stati ritornati " + qtarest + " libri. "+qtarit+" libri riconsegnati in ritardo.");
 		} catch (Exception e) {
-			System.out.println("Errore nel caricamento del nuovo prestito : " + e.getMessage());
+			System.out.println("Errore nel caricamento del prestito : " + e.getMessage());
 		}
 	}
+	
+	public static void AggiungiLibri() {
+		boolean esci=false;
+		do {
+			Scanner sc=new Scanner(System.in);
+		System.out.println("Inserisci il titolo del libro da caricare: ");
+		Libri l = cercaLibroDaTitolo();
+		System.out.println("Inserisci quantità di libri da caricare: ");
+		int qtalibri=sc.nextInt();
+		sql ="UPDATE libri SET qta = qta + ? WHERE id = ?";
+		try (Connection conn = DriverManager.getConnection(url, "root", "")) {
+			try (PreparedStatement ps= conn.prepareStatement(sql)){
+				ps.setInt(1, qtalibri);
+				ps.setInt(2, l.id);
+				ps.executeUpdate();
+			}
+		}catch (Exception e) {
+			System.out.println("Errore nel caricamento dei libri : " + e.getMessage());
+		}
+				
+			
+		} while(!esci);
+		}
+	
+//	public static void controlloGiacenze() {
+//		sql="SELECT id, titolo, qnt FROM libri INNER JOIN editori ON libri.id_editore=editori.id";
+//		Libri l=new Libri();
+//		try (Connection conn = DriverManager.getConnection(url, "root", "")) {
+//			try (PreparedStatement ps= conn.prepareStatement(sql)){
+//				try (ResultSet rs=ps.executeQuery()){
+//					while (rs.next()) {
+//						
+//					}
+//				})
+//			}
+//		}catch (Exception e) {
+//			System.out.println("Errore nel caricamento dei libri : " + e.getMessage());
+//		}
+//		
+//	}
 }
